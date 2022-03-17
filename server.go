@@ -160,7 +160,7 @@ func switchSource(c *gin.Context) {
 		plist = plistref
 
 		lastUpdate = time.Now()
-		td, err := plist.Header("#EXT-X-TARGETDURATION").Float(32)
+		td, err := plist.Header("EXT-X-TARGETDURATION").Float(32)
 
 		if err != nil {
 			msg := fmt.Sprintf("Failed to get target duration\n%v", err)
