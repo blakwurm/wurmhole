@@ -9,9 +9,10 @@ import (
 
 type DynamicPlaylist struct {
 	Playlist
-	lastCount     int
-	mediaSequence int
-	prefix        string
+	lastCount         int
+	mediaSequence     int
+	prefix            string
+	discontinuityTags bool
 }
 
 func dupPlaylist(source Playlist) Playlist {
@@ -42,22 +43,23 @@ func downloadPlaylist(sourceUrl string) (Playlist, error) {
 	return ParsePlaylist(body)
 }
 
-func NewDynamicPlaylistFromUrl(sourceUrl string, baseUrl string) (*DynamicPlaylist, error) {
+func NewDynamicPlaylistFromUrl(sourceUrl string, baseUrl string, discontinuityTags bool) (*DynamicPlaylist, error) {
 	source, err := downloadPlaylist(sourceUrl)
 	if err != nil {
 		return nil, err
 	}
-	p, err := NewDynamicPlaylist(source, baseUrl)
+	p, err := NewDynamicPlaylist(source, baseUrl, discontinuityTags)
 	return p, err
 }
 
-func NewDynamicPlaylist(source Playlist, prefix string) (*DynamicPlaylist, error) {
+func NewDynamicPlaylist(source Playlist, prefix string, discontinuityTags bool) (*DynamicPlaylist, error) {
 
 	return &DynamicPlaylist{
-		Playlist:      dupPlaylist(source),
-		lastCount:     0,
-		mediaSequence: 1,
-		prefix:        prefix,
+		Playlist:          dupPlaylist(source),
+		lastCount:         0,
+		mediaSequence:     1,
+		prefix:            prefix,
+		discontinuityTags: discontinuityTags,
 	}, nil
 }
 
@@ -76,7 +78,11 @@ func (p *DynamicPlaylist) stitchNew(source Playlist) {
 			search--
 		}
 	}
-	stitch = append([]Entry{Disjoint()}, stitch...)
+
+	if p.discontinuityTags {
+		stitch = append([]Entry{Disjoint()}, stitch...)
+	}
+
 	p.entries = append(p.entries, stitch...)
 }
 
