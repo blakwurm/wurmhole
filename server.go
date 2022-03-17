@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/blakwurm/wurmhole/playlist"
@@ -16,6 +17,8 @@ var targetLength float32
 var timeToWait float32
 var lastUpdate time.Time
 var streaming bool
+var writeWg sync.WaitGroup
+var readWg sync.WaitGroup
 
 const (
 	basePlaylistUrl string = "http://localhost:8080/hls/"
@@ -102,15 +105,21 @@ func servePlaylist(c *gin.Context) {
 
 	dur := time.Now().Sub(lastUpdate)
 	if float32(dur.Seconds()) >= timeToWait && streaming {
+		readWg.Wait()
+		writeWg.Add(1)
 		err := updatePlaylist()
 		if err != nil {
 			msg := fmt.Sprintf("Failed to update playlist\n%v", err)
 			c.String(500, msg)
 			return
 		}
+		writeWg.Done()
 	}
 
+	writeWg.Wait()
+	readWg.Add(1)
 	str := plist.String()
+	readWg.Done()
 
 	if !streaming {
 		str += "#EXT-X-ENDLIST\n"
@@ -166,12 +175,15 @@ func switchSource(c *gin.Context) {
 		return
 	}
 
+	writeWg.Wait()
+	readWg.Add(1)
 	_, err := plist.UpdateFromUrl(getPlaylist(curStream), true)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to update playlist\n%v", err)
 		c.String(500, msg)
 		return
 	}
+	readWg.Done()
 
 	lastUpdate = time.Now()
 	timeToWait = targetLength
