@@ -221,7 +221,7 @@ func TestStitch(t *testing.T) {
 			continue
 		}
 
-		err = p.UpdatePlaylist(stlist, test.disjoint)
+		_, err = p.UpdatePlaylist(stlist, test.disjoint)
 		if err != nil {
 			t.Errorf("Test %d: %s", i, err)
 			continue
@@ -246,6 +246,6 @@ func BenchmarkDynamicPlaylist(b *testing.B) {
 		oplist, _ := playlist.ParsePlaylist(strings.NewReader(original))
 		stlist, _ := playlist.ParsePlaylist(strings.NewReader(stitched))
 		p, _ := playlist.NewDynamicPlaylist(oplist, "")
-		_ = p.UpdatePlaylist(stlist, test.disjoint)
+		_, _ = p.UpdatePlaylist(stlist, test.disjoint)
 	}
 }

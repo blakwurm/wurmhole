@@ -101,34 +101,35 @@ func (p *DynamicPlaylist) stitch(source Playlist) {
 	}
 }
 
-func (p *DynamicPlaylist) UpdateFromUrl(sourceUrl string, disjoint bool) error {
+func (p *DynamicPlaylist) UpdateFromUrl(sourceUrl string, disjoint bool) (bool, error) {
 	source, err := downloadPlaylist(sourceUrl)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	return p.UpdatePlaylist(source, disjoint)
 }
 
-func (p *DynamicPlaylist) UpdatePlaylist(source Playlist, disjoint bool) error {
+func (p *DynamicPlaylist) UpdatePlaylist(source Playlist, disjoint bool) (bool, error) {
 	if disjoint {
 		p.stitchNew(source)
 		p.incrementMediaSequence()
 
-		return nil
+		return true, nil
 	}
 
 	seq, err := source.Header("EXT-X-MEDIA-SEQUENCE").Int(32)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if p.lastCount != int(seq) {
 		p.stitch(source)
 		p.incrementMediaSequence()
+		return true, nil
 	}
 
-	return nil
+	return false, nil
 }
 
 func (p *DynamicPlaylist) String() string {

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"runtime/debug"
+	"time"
 
 	"github.com/blakwurm/wurmhole/playlist"
 	"github.com/gin-gonic/gin"
@@ -11,6 +12,9 @@ import (
 var plist *playlist.DynamicPlaylist
 var streams []string
 var curStream string
+var targetLength float32
+var timeToWait float32
+var lastUpdate time.Time
 
 const (
 	basePlaylistUrl string = "http://localhost:8080/hls/"
@@ -66,6 +70,23 @@ func streamEnd(c *gin.Context) {
 	c.Status(200)
 }
 
+func updatePlaylist() error {
+	update, err := plist.UpdateFromUrl(getPlaylist(curStream), false)
+	if err != nil {
+		return err
+	}
+
+	lastUpdate = time.Now()
+
+	if update {
+		timeToWait = targetLength
+	} else {
+		timeToWait = targetLength / 2
+	}
+
+	return nil
+}
+
 func servePlaylist(c *gin.Context) {
 	c.Header("Content-Type", "application/x-mpegURL")
 	c.Header("Cache-Control", "no-cache")
@@ -74,11 +95,14 @@ func servePlaylist(c *gin.Context) {
 		return
 	}
 
-	err := plist.UpdateFromUrl(getPlaylist(curStream), false)
-	if err != nil {
-		msg := fmt.Sprintf("Failed to update playlist\n%v", err)
-		c.String(500, msg)
-		return
+	dur := time.Now().Sub(lastUpdate)
+	if float32(dur.Seconds()) >= timeToWait {
+		err := updatePlaylist()
+		if err != nil {
+			msg := fmt.Sprintf("Failed to update playlist\n%v", err)
+			c.String(500, msg)
+			return
+		}
 	}
 
 	str := plist.String()
@@ -116,16 +140,31 @@ func switchSource(c *gin.Context) {
 		}
 
 		plist = plistref
+
+		lastUpdate = time.Now()
+		td, err := plist.Header("#EXT-X-TARGETDURATION").Float(32)
+
+		if err != nil {
+			msg := fmt.Sprintf("Failed to get target duration\n%v", err)
+			c.String(500, msg)
+			return
+		}
+
+		targetLength = float32(td)
+		timeToWait = targetLength
 		c.String(200, "OK")
 		return
 	}
 
-	err := plist.UpdateFromUrl(getPlaylist(curStream), true)
+	_, err := plist.UpdateFromUrl(getPlaylist(curStream), true)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to update playlist\n%v", err)
 		c.String(500, msg)
 		return
 	}
+
+	lastUpdate = time.Now()
+	timeToWait = targetLength
 
 	c.String(200, "OK")
 }
