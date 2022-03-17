@@ -109,6 +109,10 @@ func (p *Playlist) Header(key string) HeaderValue {
 	return p.headers[key]
 }
 
+func (p *Playlist) Headers() map[string]HeaderValue {
+	return p.headers
+}
+
 func (p *Playlist) Entries() []Entry {
 	return p.entries
 }

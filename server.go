@@ -150,7 +150,7 @@ func switchSource(c *gin.Context) {
 	}
 
 	if !streaming {
-		plistref, err := playlist.NewDynamicPlaylistFromUrl(getPlaylist(curStream), baseKeyframeUrl, false)
+		plistref, err := playlist.NewDynamicPlaylistFromUrl(getPlaylist(curStream), baseKeyframeUrl, true)
 		if err != nil {
 			msg := fmt.Sprintf("Failed to create playlist\n%v", err)
 			c.String(500, msg)
