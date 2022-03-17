@@ -11,10 +11,11 @@ import (
 
 var plist *playlist.DynamicPlaylist
 var streams []string
-var curStream string
+var curStream int
 var targetLength float32
 var timeToWait float32
 var lastUpdate time.Time
+var streaming bool
 
 const (
 	basePlaylistUrl string = "http://localhost:8080/hls/"
@@ -35,7 +36,8 @@ func main() {
 	r.Run("0.0.0.0:8000")
 }
 
-func getPlaylist(stream string) string {
+func getPlaylist(streamId int) string {
+	stream := streams[streamId]
 	return fmt.Sprintf("%s%s.m3u8", basePlaylistUrl, stream)
 }
 
@@ -57,15 +59,17 @@ func streamBegin(c *gin.Context) {
 func streamEnd(c *gin.Context) {
 	var req PublishRequest
 	c.Bind(&req)
-	for i, v := range streams {
-		if v == req.Name {
-			l := len(streams)
-			if l > 1 {
-				streams[i] = streams[l-1]
-			}
-			streams = streams[:l-1]
-			break
+	if i := indexOf(streams, req.Name); i >= 0 {
+		l := len(streams)
+		if l > 1 {
+			streams[i] = streams[l-1]
+			plist.UpdateFromUrl(getPlaylist(i), true)
+			lastUpdate = time.Now()
+			timeToWait = targetLength
+		} else {
+			streaming = false
 		}
+		streams = streams[:l-1]
 	}
 	c.Status(200)
 }
@@ -91,12 +95,13 @@ func servePlaylist(c *gin.Context) {
 	c.Header("Content-Type", "application/x-mpegURL")
 	c.Header("Cache-Control", "no-cache")
 	if plist == nil {
-		c.String(200, "")
+		empty := playlist.EmptyPlaylist()
+		c.String(200, (&empty).String())
 		return
 	}
 
 	dur := time.Now().Sub(lastUpdate)
-	if float32(dur.Seconds()) >= timeToWait {
+	if float32(dur.Seconds()) >= timeToWait && streaming {
 		err := updatePlaylist()
 		if err != nil {
 			msg := fmt.Sprintf("Failed to update playlist\n%v", err)
@@ -107,31 +112,35 @@ func servePlaylist(c *gin.Context) {
 
 	str := plist.String()
 
+	if !streaming {
+		str += "#EXT-X-ENDLIST\n"
+	}
+
 	c.String(200, str)
 }
 
-func contains(s []string, str string) bool {
-	for _, v := range s {
+func indexOf(s []string, str string) int {
+	for i, v := range s {
 		if v == str {
-			return true
+			return i
 		}
 	}
 
-	return false
+	return -1
 }
 
 func switchSource(c *gin.Context) {
 	var source ContentSource
 	c.Bind(&source)
 
-	if contains(streams, source.Name) {
-		curStream = source.Name
-	} else {
+	if i := indexOf(streams, source.Name); i < 0 {
 		c.String(400, "Unknown source")
+	} else {
+		curStream = i
 		return
 	}
 
-	if plist == nil {
+	if !streaming {
 		plistref, err := playlist.NewDynamicPlaylistFromUrl(getPlaylist(curStream), baseKeyframeUrl)
 		if err != nil {
 			msg := fmt.Sprintf("Failed to create playlist\n%v", err)
@@ -152,6 +161,7 @@ func switchSource(c *gin.Context) {
 
 		targetLength = float32(td)
 		timeToWait = targetLength
+		streaming = true
 		c.String(200, "OK")
 		return
 	}

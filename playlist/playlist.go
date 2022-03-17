@@ -38,6 +38,13 @@ type Playlist struct {
 	entries []Entry
 }
 
+func EmptyPlaylist() Playlist {
+	return Playlist{
+		headers: make(map[string]HeaderValue),
+		entries: make([]Entry, 0),
+	}
+}
+
 func ParsePlaylist(source io.Reader) (Playlist, error) {
 	scanner := bufio.NewScanner(source)
 	if !scanner.Scan() {
